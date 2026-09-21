@@ -217,7 +217,7 @@
 </div>
 
 <div class="controls">
-  <input class="search-box" id="search" type="text" placeholder="Tìm kiếm theo tên, thư mục, session ID...">
+  <input class="search-box" id="search" type="text" placeholder="Tìm kiếm theo tên, thư mục, session ID..." aria-label="Tìm kiếm session">
   <button class="sort-btn active" data-sort="updated" onclick="setSort('updated')">Mới nhất</button>
   <button class="sort-btn" data-sort="created" onclick="setSort('created')">Ngày tạo</button>
   <button class="sort-btn" data-sort="name" onclick="setSort('name')">Tên A-Z</button>
@@ -236,17 +236,23 @@ let allSessions = [];
 let currentSort = 'updated';
 
 async function loadSessions() {
-  const res = await fetch('/api/sessions');
-  allSessions = await res.json();
-  render();
+  try {
+    const res = await fetch('/api/sessions');
+    const data = await res.json();
+    allSessions = data.sessions || [];
+    if (data.error) showToast(data.error, true);
+    render();
+  } catch (e) {
+    showToast('Không thể kết nối server', true);
+  }
 }
 
 function render() {
   const q = document.getElementById('search').value.toLowerCase();
   let filtered = allSessions.filter(s =>
-    s.title.toLowerCase().includes(q) ||
-    s.directory.toLowerCase().includes(q) ||
-    s.id.toLowerCase().includes(q)
+    (s.title || '').toLowerCase().includes(q) ||
+    (s.directory || '').toLowerCase().includes(q) ||
+    (s.id || '').toLowerCase().includes(q)
   );
 
   if (currentSort === 'updated') {
@@ -275,7 +281,7 @@ function render() {
   }
 
   list.innerHTML = filtered.map((s, i) => `
-    <div class="session-card" data-sid="${escapeAttr(s.id)}" data-dir="${escapeAttr(s.directory)}"
+    <div class="session-card" role="button" tabindex="0" data-sid="${escapeAttr(s.id)}" data-dir="${escapeAttr(s.directory)}"
          style="animation-delay: ${Math.min(i * 0.03, 0.5)}s">
       <div class="session-icon">💬</div>
       <div class="session-info">
@@ -296,13 +302,15 @@ function render() {
           </span>
         </div>
       </div>
-      <span class="session-id">${s.id.substring(0, 20)}...</span>
+      <span class="session-id">${escapeHtml(s.id.length > 20 ? s.id.substring(0, 20) + '...' : s.id)}</span>
       <span class="open-indicator">Mở ▸</span>
     </div>
   `).join('');
   list.querySelectorAll('.session-card').forEach(card => {
-    card.addEventListener('click', () => {
-      openSession(card.dataset.sid, card.dataset.dir);
+    const handler = () => openSession(card.dataset.sid, card.dataset.dir);
+    card.addEventListener('click', handler);
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handler(); }
     });
   });
 }
@@ -358,7 +366,8 @@ function escapeHtml(str) {
             .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 function escapeAttr(str) {
-  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+            .replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&#039;');
 }
 
 document.getElementById('search').addEventListener('input', render);
