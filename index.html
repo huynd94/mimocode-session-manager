@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiMoCode Session Manager</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-hover: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb;
+    --green: #3fb950;
+    --red: #f85149;
+    --orange: #d29922;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .header .badge {
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+  }
+  .controls {
+    padding: 16px 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-secondary); }
+  .sort-btn {
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .sort-btn:hover { border-color: var(--accent); color: var(--text); }
+  .sort-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,0.08); }
+  .refresh-btn {
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover { border-color: var(--green); color: var(--green); }
+  .container { padding: 0 24px 24px; }
+  .session-list { display: flex; flex-direction: column; gap: 4px; }
+  .session-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .session-card:hover {
+    background: var(--surface-hover);
+    border-color: var(--accent);
+    transform: translateX(2px);
+  }
+  .session-card:active { transform: translateX(1px); }
+  .session-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: var(--accent-dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+  .session-info { flex: 1; min-width: 0; }
+  .session-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+  .session-meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .session-meta-item {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .session-meta-item .label { opacity: 0.7; }
+  .session-meta-item .value {
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11px;
+  }
+  .session-id {
+    font-family: 'Cascadia Code', 'Fira Code', monospace;
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: rgba(255,255,255,0.04);
+    padding: 2px 6px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .open-indicator {
+    opacity: 0;
+    transition: opacity 0.2s;
+    color: var(--accent);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .session-card:hover .open-indicator { opacity: 1; }
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+  .empty-state .msg { font-size: 14px; }
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--surface);
+    border: 1px solid var(--green);
+    color: var(--green);
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 100;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all 0.3s ease;
+    max-width: 400px;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.error { border-color: var(--red); color: var(--red); }
+  .stats {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 0 24px 8px;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .session-card { animation: fadeIn 0.2s ease forwards; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+  </svg>
+  <h1>MiMoCode Session Manager</h1>
+  <span class="badge" id="count">0 sessions</span>
+</div>
+
+<div class="controls">
+  <input class="search-box" id="search" type="text" placeholder="Tìm kiếm theo tên, thư mục, session ID...">
+  <button class="sort-btn active" data-sort="updated" onclick="setSort('updated')">Mới nhất</button>
+  <button class="sort-btn" data-sort="created" onclick="setSort('created')">Ngày tạo</button>
+  <button class="sort-btn" data-sort="name" onclick="setSort('name')">Tên A-Z</button>
+  <button class="refresh-btn" onclick="loadSessions()">↻ Làm mới</button>
+</div>
+
+<div class="stats" id="stats"></div>
+<div class="container">
+  <div class="session-list" id="list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let allSessions = [];
+let currentSort = 'updated';
+
+async function loadSessions() {
+  const res = await fetch('/api/sessions');
+  allSessions = await res.json();
+  render();
+}
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  let filtered = allSessions.filter(s =>
+    s.title.toLowerCase().includes(q) ||
+    s.directory.toLowerCase().includes(q) ||
+    s.id.toLowerCase().includes(q)
+  );
+
+  if (currentSort === 'updated') {
+    filtered.sort((a, b) => b.time_updated_ts - a.time_updated_ts);
+  } else if (currentSort === 'created') {
+    filtered.sort((a, b) => b.time_created_ts - a.time_created_ts);
+  } else {
+    filtered.sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  document.getElementById('count').textContent = `${filtered.length} sessions`;
+  document.getElementById('stats').textContent =
+    filtered.length > 0
+      ? `Hiển thị ${filtered.length} / ${allSessions.length} cuộc trò chuyện`
+      : '';
+
+  const list = document.getElementById('list');
+
+  if (filtered.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">💬</div>
+        <div class="msg">Không tìm thấy cuộc trò chuyện nào</div>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map((s, i) => `
+    <div class="session-card" data-sid="${escapeAttr(s.id)}" data-dir="${escapeAttr(s.directory)}"
+         style="animation-delay: ${Math.min(i * 0.03, 0.5)}s">
+      <div class="session-icon">💬</div>
+      <div class="session-info">
+        <div class="session-title" title="${escapeAttr(s.title)}">${escapeHtml(s.title)}</div>
+        <div class="session-meta">
+          <span class="session-meta-item">
+            <span class="label">Thư mục:</span>
+            <span class="value">${escapeHtml(s.directory)}</span>
+          </span>
+          <span class="session-meta-item">
+            <span class="label">Cập nhật:</span>
+            <span class="value">${s.time_updated}</span>
+            <span style="color:var(--orange);margin-left:4px">${relativeTime(s.time_updated_ts)}</span>
+          </span>
+          <span class="session-meta-item">
+            <span class="label">Tạo:</span>
+            <span class="value">${s.time_created}</span>
+          </span>
+        </div>
+      </div>
+      <span class="session-id">${s.id.substring(0, 20)}...</span>
+      <span class="open-indicator">Mở ▸</span>
+    </div>
+  `).join('');
+  list.querySelectorAll('.session-card').forEach(card => {
+    card.addEventListener('click', () => {
+      openSession(card.dataset.sid, card.dataset.dir);
+    });
+  });
+}
+
+function setSort(sort) {
+  currentSort = sort;
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.sort === sort);
+  });
+  render();
+}
+
+async function openSession(sessionId, directory) {
+  try {
+    const res = await fetch('/api/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, directory: directory })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast(`Đang mở session: ${sessionId}`);
+    } else {
+      showToast(data.error, true);
+    }
+  } catch (e) {
+    showToast('Lỗi kết nối server', true);
+  }
+}
+
+function showToast(msg, isError = false) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => toast.className = 'toast', 3000);
+}
+
+function relativeTime(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'vừa xong';
+  if (mins < 60) return `${mins} phút trước`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} giờ trước`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days} ngày trước`;
+  const months = Math.floor(days / 30);
+  return `${months} tháng trước`;
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+function escapeAttr(str) {
+  return str.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+
+document.getElementById('search').addEventListener('input', render);
+
+loadSessions();
+</script>
+</body>
+</html>
